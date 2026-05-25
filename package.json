@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node -e \"if(require('fs').existsSync('.env')){console.warn('\\x1b[33mWARNING: .env file contains real credentials. Use environment variables or .env.local for production.\\x1b[0m')}\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
