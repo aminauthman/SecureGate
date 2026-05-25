@@ -1,86 +1,95 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import Link from "next/link";
+import { FormField } from "@/components/ui/FormField";
+import { Button } from "@/components/ui/Button";
 
-interface PageProps {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}
+export default function VerifyEmailPage() {
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-export default async function VerifyEmailPage({ searchParams }: PageProps) {
-  const params = await searchParams;
-  const error = params.error as string | undefined;
-  const success = params.success as string | undefined;
+  async function handleResend(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
 
-  let title: string;
-  let message: string;
-  let isError: boolean;
-
-  if (success === "true") {
-    title = "Email Verified";
-    message = "Your email has been successfully verified. You can now sign in to your account.";
-    isError = false;
-  } else if (error === "missing-token") {
-    title = "Invalid Link";
-    message = "No verification token was provided. Please use the full link from your email.";
-    isError = true;
-  } else if (error === "invalid-token") {
-    title = "Invalid Link";
-    message = "This verification link is invalid or has already been used. Please request a new one.";
-    isError = true;
-  } else if (error === "expired-token") {
-    title = "Link Expired";
-    message = "This verification link has expired. Please request a new one.";
-    isError = true;
-  } else {
-    title = "Verification Failed";
-    message = "An unexpected error occurred. Please try again.";
-    isError = true;
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message || "Something went wrong.");
+      } else {
+        setSent(true);
+      }
+    } catch {
+      setError("An unexpected network error occurred.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 px-4 py-8">
-      <div className="fixed top-4 right-4">
-        <ThemeToggle />
-      </div>
+      <div className="fixed top-4 right-4"><ThemeToggle /></div>
       <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-xl shadow-md p-6 space-y-6 text-center">
-        <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${isError ? "bg-red-100 dark:bg-red-900/30" : "bg-emerald-100 dark:bg-emerald-900/30"}`}>
-          {isError ? (
-            <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          ) : (
-            <svg className="w-8 h-8 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
-          )}
+        <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+          <svg className="w-8 h-8 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+          </svg>
         </div>
 
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            {title}
-          </h1>
-          <p className="text-base font-normal text-slate-600 dark:text-slate-400">
-            {message}
-          </p>
-        </div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+          Verify Your Email
+        </h1>
+        <p className="text-base font-normal text-slate-600 dark:text-slate-400">
+          You need to verify your email address before accessing the dashboard.
+          Check your inbox for the verification link (expires in 15 minutes).
+        </p>
 
-        <div className="pt-4">
-          <Link
-            href="/login"
-            className="inline-flex items-center justify-center rounded-md px-6 py-3 text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-          >
-            Sign In
-          </Link>
-        </div>
+        {sent ? (
+          <div className="text-sm font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md p-3 dark:bg-emerald-950/30 dark:border-emerald-900/50">
+            If an account exists, a new verification link has been sent.
+          </div>
+        ) : (
+          <form onSubmit={handleResend} className="space-y-4">
+            {error && (
+              <div role="alert" className="text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-md p-3 dark:bg-red-950/30 dark:border-red-900/50">
+                {error}
+              </div>
+            )}
+            <FormField
+              label="Email Address"
+              name="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
 
-        {isError && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Need a new verification link?{" "}
-            <Link href="/login" className="text-blue-600 hover:text-blue-700 underline underline-offset-2">
-              Sign in to resend
-            </Link>
-          </p>
+            />
+            <Button
+              type="submit"
+              variant="primary"
+              loading={loading}
+              disabled={loading || !email}
+              className="w-full h-12"
+            >
+              Resend Verification Email
+            </Button>
+          </form>
         )}
+
+        <div className="text-sm">
+          <a href="/auth?mode=signin" className="text-blue-600 hover:text-blue-700 underline underline-offset-2">
+            Back to Sign In
+          </a>
+        </div>
       </div>
     </main>
   );

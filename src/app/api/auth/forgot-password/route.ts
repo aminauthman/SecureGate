@@ -1,44 +1,31 @@
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
 import { z } from "zod";
-import { db } from "@/lib/db";
+
+import { csrfGuard } from "@/lib/csrf";
+import { checkRateLimit, checkRateLimitPerEmail, getClientIp } from "@/lib/rate-limit";
+import { findUserByEmail, createVerificationToken } from "@/lib/services/user";
+import { sendPasswordResetEmail } from "@/lib/services/email";
 
 const forgotSchema = z.object({
   email: z.string().email().transform((e) => e.toLowerCase().trim()),
 });
 
-let ratelimit: Ratelimit | null = null;
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-if (redisUrl && redisToken) {
-  try {
-    const redis = new Redis({ url: redisUrl, token: redisToken });
-    ratelimit = new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(5, "60 s"),
-      analytics: true,
-    });
-  } catch {
-    // rate limiting disabled if Redis unavailable
-  }
-}
-
 export async function POST(request: Request) {
-  const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+  const csrf = csrfGuard(request);
+  if (csrf) return csrf;
 
-  if (ratelimit) {
-    const { success, reset } = await ratelimit.limit(`forgot-password:${ip}`);
-    if (!success) {
-      return NextResponse.json(
-        { message: "Too many requests. Please try again later." },
-        {
-          status: 429,
-          headers: { "Retry-After": Math.ceil((reset - Date.now()) / 1000).toString() },
-        }
-      );
-    }
+  const ip = getClientIp(request);
+  const { allowed, retryAfter } = await checkRateLimit(`forgot-password:${ip}`);
+
+  if (!allowed) {
+    return NextResponse.json(
+      { message: "Too many attempts! Try again later." },
+      {
+        status: 429,
+        headers: { "Retry-After": retryAfter.toString() },
+      }
+    );
   }
 
   try {
@@ -47,31 +34,40 @@ export async function POST(request: Request) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { message: "Something went wrong. Please try again." },
+        { message: "Invalid input. Please check your entries and try again." },
         { status: 400 }
       );
     }
 
     const { email } = parsed.data;
 
-    // Always return the same message (enumeration mitigation)
-    await db.user.findUnique({ where: { email } });
+    const emailAllowed = await checkRateLimitPerEmail("forgot-email", email);
+    if (!emailAllowed.allowed) {
+      return NextResponse.json(
+        { message: "Too many attempts! Try again later." },
+        {
+          status: 429,
+          headers: { "Retry-After": emailAllowed.retryAfter.toString() },
+        }
+      );
+    }
 
-    // Generate reset token (expires in 15 min per security.md)
-    const token = crypto.randomUUID();
-    await db.verificationToken.create({
-      data: {
-        identifier: email,
-        token,
-        expires: new Date(Date.now() + 15 * 60 * 1000),
-      },
-    });
+    const user = await findUserByEmail(email);
+
+    if (user) {
+      const token = crypto.randomUUID();
+      await createVerificationToken(email, token, new Date(Date.now() + 15 * 60 * 1000));
+      await sendPasswordResetEmail(email, token);
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
 
     return NextResponse.json(
       { message: "If an account exists, a reset link has been sent." },
       { status: 200 }
     );
-  } catch {
+  } catch (error) {
+    console.error("FORGOT_PASSWORD_ERROR:", error);
     return NextResponse.json(
       { message: "An unexpected error occurred." },
       { status: 500 }

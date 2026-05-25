@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import crypto from "node:crypto";
 import { z } from "zod";
 
 import { csrfGuard } from "@/lib/csrf";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
-import { findUserByEmail, createUser, createVerificationToken } from "@/lib/services/user";
-import { sendVerificationEmail } from "@/lib/services/email";
+import { findVerificationToken, resetPassword } from "@/lib/services/user";
 
-const registerSchema = z.object({
-  name: z.string().min(1).max(100).transform((v) => v.trim().replace(/[<>]/g, "")),
-  email: z.string().email(),
+const resetSchema = z.object({
+  token: z.string().uuid(),
   password: z.string().min(12).refine((v) => /[A-Z]/.test(v), "Must contain an uppercase letter").refine((v) => /[a-z]/.test(v), "Must contain a lowercase letter").refine((v) => /[0-9]/.test(v), "Must contain a number").refine((v) => /[^A-Za-z0-9]/.test(v), "Must contain a special character"),
 });
 
@@ -19,7 +16,7 @@ export async function POST(request: Request) {
   if (csrf) return csrf;
 
   const ip = getClientIp(request);
-  const { allowed, retryAfter } = await checkRateLimit(`signup:${ip}`);
+  const { allowed, retryAfter } = await checkRateLimit(`reset-password:${ip}`);
 
   if (!allowed) {
     return NextResponse.json(
@@ -33,7 +30,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const parsed = registerSchema.safeParse(body);
+    const parsed = resetSchema.safeParse(body);
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -42,13 +39,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const { email, password, name } = parsed.data;
+    const { token, password } = parsed.data;
 
-    const existingUser = await findUserByEmail(email.toLowerCase());
+    const verificationToken = await findVerificationToken(token);
 
-    if (existingUser) {
+    if (!verificationToken || verificationToken.expires < new Date()) {
       return NextResponse.json(
-        { message: "This email has been taken, want to sign in?" },
+        { message: "Invalid or expired reset link." },
         { status: 400 }
       );
     }
@@ -56,23 +53,14 @@ export async function POST(request: Request) {
     const saltRounds = 14;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    await createUser({ name, email: email.toLowerCase(), passwordHash });
-
-    const token = crypto.randomBytes(32).toString("hex");
-    await createVerificationToken(email.toLowerCase(), token, new Date(Date.now() + 15 * 60 * 1000));
-
-    const emailSent = await sendVerificationEmail(email.toLowerCase(), token);
-
-    if (!emailSent) {
-      console.warn("EMAIL SENDING FAILED for:", email.toLowerCase());
-    }
+    await resetPassword(verificationToken.identifier, passwordHash, verificationToken.id);
 
     return NextResponse.json(
-      { message: "Account created successfully." },
-      { status: 201 }
+      { message: "Password reset successfully." },
+      { status: 200 }
     );
   } catch (error) {
-    console.error("REGISTRATION_ERROR_DIAGNOSTIC:", error);
+    console.error("RESET_PASSWORD_ERROR:", error);
     return NextResponse.json(
       { message: "An unexpected error occurred." },
       { status: 500 }

@@ -1,14 +1,33 @@
-import React from "react";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { LoginPageContent } from "@/components/auth/LoginPageContent";
+"use client";
+
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+
+function LoginRedirect() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const verified = searchParams.get("verified");
+    const dest = verified ? `/auth?mode=signin&verified=${verified}` : "/auth?mode=signin";
+    router.replace(dest);
+  }, [router, searchParams]);
+
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+      <p className="text-slate-600 dark:text-slate-400">Redirecting...</p>
+    </main>
+  );
+}
 
 export default function LoginPage() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 px-4 py-8">
-      <div className="fixed top-4 right-4">
-        <ThemeToggle />
-      </div>
-      <LoginPageContent />
-    </main>
+    <Suspense fallback={
+      <main className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <p className="text-slate-600 dark:text-slate-400">Redirecting...</p>
+      </main>
+    }>
+      <LoginRedirect />
+    </Suspense>
   );
 }

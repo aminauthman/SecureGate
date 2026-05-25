@@ -1,4 +1,4 @@
-import React from "react";
+
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export default function HomePage() {
@@ -7,7 +7,7 @@ export default function HomePage() {
       <div className="fixed top-4 right-4">
         <ThemeToggle />
       </div>
-      <div className="w-full max-w-lg bg-white dark:bg-slate-800 rounded-xl shadow-md p-6 space-y-6 text-center">
+      <div className="w-full max-w-lg p-6 space-y-6 text-center">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
           Welcome to SecureGate
         </h1>

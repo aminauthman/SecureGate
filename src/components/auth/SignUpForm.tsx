@@ -1,198 +1,170 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { FormField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
+import { PASSWORD_REQUIREMENTS } from "@/lib/constants";
 
-type ViewState = "idle" | "loading" | "error" | "success";
+function getPasswordStrength(password: string): { label: string; boxes: number } {
+  const length = password.length;
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasDigit = /[0-9]/.test(password);
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
+  const variety = [hasUpper, hasLower, hasDigit, hasSpecial].filter(Boolean).length;
 
-export function SignUpForm() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [state, setState] = useState<ViewState>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [shouldAutoFocus, setShouldAutoFocus] = useState(false);
+  let lengthScore = 0;
+  if (length >= 16) lengthScore = 3;
+  else if (length >= 12) lengthScore = 2;
+  else if (length >= 8) lengthScore = 1;
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const isFromMarketing =
-      params.get("ref") === "marketing" ||
-      params.get("from") === "marketing" ||
-      (typeof document !== "undefined" && document.referrer && document.referrer.includes("marketing"));
-    
-    if (isFromMarketing) {
-      setTimeout(() => {
-        setShouldAutoFocus(true);
-      }, 0);
-    }
-  }, []);
+  const total = lengthScore + variety;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !email || !password || !confirmPassword) {
-      setError("All fields are required.");
-      setState("error");
-      return;
-    }
+  let boxes = 1;
+  if (total >= 6) boxes = 4;
+  else if (total >= 4) boxes = 3;
+  else if (total >= 2) boxes = 2;
 
-    if (password.length < 12) {
-      setError("Password must be at least 12 characters long.");
-      setState("error");
-      return;
-    }
+  const labels = ["Basic", "Fair", "Good", "Strong"];
+  return { label: labels[boxes - 1], boxes };
+}
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      setState("error");
-      return;
-    }
+const boxColors = ["bg-orange-400", "bg-orange-400", "bg-amber-400", "bg-emerald-500"];
+const textColors = ["text-orange-500", "text-orange-500", "text-amber-500", "text-emerald-500"];
 
-    setState("loading");
-    setError(null);
-
-    try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ name, email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.message || "Registration failed. Try again.");
-        setState("error");
-      } else {
-        setState("success");
-      }
-    } catch {
-      setError("An unexpected network error occurred.");
-      setState("error");
-    }
-  };
+function PasswordStrength({ password }: { password: string }) {
+  const { label, boxes } = getPasswordStrength(password);
 
   return (
-    <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-xl shadow-md p-6 space-y-6">
-      <div className="space-y-2 text-center">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-          Create Account
-        </h1>
-        <p className="text-base font-normal text-slate-600 dark:text-slate-400">
-          Join the SecureGate IAM Platform
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {state === "error" && error && (
+    <div className="flex items-center gap-2 -mt-1">
+      <div className="flex gap-0.5">
+        {[0, 1, 2, 3].map((i) => (
           <div
-            role="alert"
-            className="text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-md p-3 dark:bg-red-950/30 dark:border-red-900/50"
-          >
-            {error}
-          </div>
-        )}
+            key={i}
+            className={`w-2 h-3 transition-colors duration-200 ${
+              i < boxes ? boxColors[i] : "bg-slate-200 dark:bg-slate-700"
+            }`}
+          />
+        ))}
+      </div>
+      <span className={`text-[11px] font-medium leading-none ${textColors[boxes - 1]}`}>
+        {label}
+      </span>
+    </div>
+  );
+}
 
-        {state === "success" && (
-          <div className="text-sm font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md p-3 dark:bg-emerald-950/30 dark:border-emerald-900/50 space-y-2">
-            <p>Account created! Check your inbox for a verification email.</p>
-            <p className="font-normal">Click the link in the email to activate your account, then sign in.</p>
-          </div>
-        )}
+interface SignUpFormProps {
+  email: string;
+  password: string;
+  name: string;
+  onEmailChange: (v: string) => void;
+  onPasswordChange: (v: string) => void;
+  onNameChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  error: string | null;
+  state: "idle" | "loading" | "error" | "success";
+  shouldAutoFocus?: boolean;
+}
 
-        <FormField
-          label="Full Name"
-          name="name"
-          type="text"
-          autoComplete="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="John Doe"
-          error={state === "error" && !name ? "Name cannot be empty" : undefined}
-          autoFocus={shouldAutoFocus}
-        />
+export function SignUpForm({
+  email, password, name,
+  onEmailChange, onPasswordChange, onNameChange,
+  onSubmit, error, state,
+  shouldAutoFocus,
+}: SignUpFormProps) {
+  const [nameTouched, setNameTouched] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
 
-        <FormField
-          label="Email Address"
-          name="email"
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="name@example.com"
-          error={state === "error" && !email ? "Email cannot be empty" : undefined}
-        />
+  const nameError = nameTouched && !name.trim()
+    ? "Name cannot be empty"
+    : nameTouched && name.trim().length < 2
+      ? "Full name must be at least 2 characters"
+      : undefined;
 
-        <FormField
-          label="Password"
-          name="password"
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Min 12 characters"
-            error={
-              state === "error" && !password
-                ? "Password cannot be empty"
-                : state === "error" && password.length < 12
-                  ? "Password must be at least 12 chars"
-                  : undefined
-            }
-        />
+  const emailError = emailTouched && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ? "Enter a valid email address"
+    : emailTouched && !email.trim()
+      ? "Email cannot be empty"
+      : undefined;
 
-        <FormField
-          label="Confirm Password"
-          name="confirmPassword"
-          type="password"
-          autoComplete="new-password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          placeholder="••••••••••••"
-            error={
-              state === "error" && !confirmPassword
-                ? "Confirm password cannot be empty"
-                : state === "error" && password !== confirmPassword
-                  ? "Passwords do not match"
-                  : undefined
-            }
-        />
+  const passwordError = passwordTouched && !password
+    ? "Password cannot be empty"
+    : undefined;
 
-        <Button
-          type="submit"
-          variant="primary"
-          loading={state === "loading"}
-        disabled={state === "loading"}
-        className="w-full h-12"
-      >
-        Sign Up
-      </Button>
+  const nextRequirement = useMemo(() => {
+    if (!passwordTouched) return null;
+    const unmet = PASSWORD_REQUIREMENTS.find((r) => !r.check(password));
+    return unmet?.label ?? null;
+  }, [password, passwordTouched]);
 
-      {state === "success" && (
-        <div className="text-center">
-          <a
-            href="/login"
-            className="text-blue-600 hover:text-blue-700 underline underline-offset-2 font-semibold"
-          >
-            Sign In
-          </a>
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      {error && (
+        <div role="alert" className="text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-md p-3 dark:bg-red-950/30 dark:border-red-900/50">
+          {error}
         </div>
       )}
-      </form>
 
-      <div className="text-center">
-        <p className="text-sm text-slate-600 dark:text-slate-400">
-          Already have an account?{" "}
-          <a
-            href="/auth"
-            className="text-blue-600 hover:text-blue-700 underline underline-offset-2 font-semibold"
-          >
-            Sign In
-          </a>
+      {state === "success" && (
+        <div className="text-sm font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md p-3 dark:bg-emerald-950/30 dark:border-emerald-900/50 space-y-2">
+          <p>Account created! Redirecting to sign in...</p>
+          <p className="font-normal">Check your inbox for a verification email to activate your account.</p>
+        </div>
+      )}
+
+      <FormField
+        label="Enter Full Name"
+        name="name"
+        type="text"
+        autoComplete="name"
+        autoFocus={shouldAutoFocus}
+        value={name}
+        onChange={(e) => onNameChange(e.target.value)}
+        onBlur={() => setNameTouched(true)}
+        error={nameError}
+      />
+
+      <FormField
+        label="Email Address"
+        name="email"
+        type="email"
+        autoComplete="email"
+        value={email}
+        onChange={(e) => onEmailChange(e.target.value)}
+        onBlur={() => setEmailTouched(true)}
+        error={emailError}
+      />
+
+      <FormField
+        label="Choose Password"
+        name="password"
+        type="password"
+        autoComplete="new-password"
+        value={password}
+        onChange={(e) => onPasswordChange(e.target.value)}
+        onFocus={() => setPasswordTouched(true)}
+        error={passwordError}
+      />
+
+      {nextRequirement && (
+        <p className="text-sm text-amber-600 dark:text-amber-400 -mt-2">
+          {nextRequirement}
         </p>
-      </div>
-    </div>
+      )}
+
+      {password.length > 0 && <PasswordStrength password={password} />}
+
+      <Button
+        type="submit"
+        variant="primary"
+        loading={state === "loading"}
+        disabled={state === "loading" || state === "success"}
+        className="w-full h-12 mt-2"
+      >
+        {state === "success" ? "Account Created!" : "Create Account"}
+      </Button>
+    </form>
   );
 }
