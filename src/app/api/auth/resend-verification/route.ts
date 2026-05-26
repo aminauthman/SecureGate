@@ -49,7 +49,8 @@ export async function POST(request: Request) {
       const token = crypto.randomBytes(32).toString("hex");
       await createVerificationToken(email, token, new Date(Date.now() + 15 * 60 * 1000));
 
-      await sendVerificationEmail(email, token);
+      const origin = new URL(request.url).origin;
+      await sendVerificationEmail(email, token, origin);
     }
 
     return NextResponse.json(

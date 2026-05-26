@@ -6,6 +6,13 @@ const FROM_EMAIL = process.env.SMTP_FROM || "SecureGate <noreply@securegate.iam>
 let transporter: Transporter | null = null;
 let etherealUrl: string | null = null;
 
+function getBaseUrl(): string {
+  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (process.env.VERCEL_BRANCH_URL) return `https://${process.env.VERCEL_BRANCH_URL}`;
+  return "http://localhost:3000";
+}
+
 async function initTransporter(): Promise<Transporter | null> {
   if (process.env.SMTP_HOST && process.env.SMTP_HOST !== "smtp.example.com") {
     return nodemailer.createTransport({
@@ -17,6 +24,12 @@ async function initTransporter(): Promise<Transporter | null> {
         pass: process.env.SMTP_PASS,
       },
     });
+  }
+
+  // Skip Ethereal fallback on Vercel — SMTP must be configured
+  if (process.env.VERCEL) {
+    console.error("[Nodemailer] SMTP not configured — set SMTP_* env vars in Vercel project settings");
+    return null;
   }
 
   try {
@@ -56,8 +69,12 @@ async function sendMail(options: {
 }): Promise<boolean> {
   const tp = await getTransporter();
   if (!tp) {
-    console.log(`[DEV] Email would be sent to ${options.to}`);
-    console.log(`[DEV] Subject: ${options.subject}`);
+    if (process.env.VERCEL) {
+      console.error(`[Vercel] Email NOT sent to ${options.to} — configure SMTP_* env vars`);
+    } else {
+      console.log(`[DEV] Email would be sent to ${options.to}`);
+      console.log(`[DEV] Subject: ${options.subject}`);
+    }
     return false;
   }
 
@@ -85,9 +102,10 @@ async function sendMail(options: {
 
 export async function sendVerificationEmail(
   email: string,
-  token: string
+  token: string,
+  baseUrl?: string
 ): Promise<boolean> {
-  const verificationUrl = `${process.env.NEXTAUTH_URL}/verify-email/${token}`;
+  const verificationUrl = `${baseUrl || getBaseUrl()}/verify-email/${token}`;
 
   return sendMail({
     to: email,
@@ -117,9 +135,10 @@ export async function sendVerificationEmail(
 
 export async function sendPasswordResetEmail(
   email: string,
-  token: string
+  token: string,
+  baseUrl?: string
 ): Promise<boolean> {
-  const resetUrl = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`;
+  const resetUrl = `${baseUrl || getBaseUrl()}/reset-password?token=${token}`;
 
   return sendMail({
     to: email,

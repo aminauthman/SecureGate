@@ -57,7 +57,8 @@ export async function POST(request: Request) {
     if (user) {
       const token = crypto.randomUUID();
       await createVerificationToken(email, token, new Date(Date.now() + 15 * 60 * 1000));
-      await sendPasswordResetEmail(email, token);
+      const origin = new URL(request.url).origin;
+      await sendPasswordResetEmail(email, token, origin);
     } else {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }

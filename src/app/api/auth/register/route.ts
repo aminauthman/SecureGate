@@ -61,10 +61,11 @@ export async function POST(request: Request) {
     const token = crypto.randomBytes(32).toString("hex");
     await createVerificationToken(email.toLowerCase(), token, new Date(Date.now() + 15 * 60 * 1000));
 
-    const emailSent = await sendVerificationEmail(email.toLowerCase(), token);
+    const origin = new URL(request.url).origin;
+    const emailSent = await sendVerificationEmail(email.toLowerCase(), token, origin);
 
     if (!emailSent) {
-      console.warn("EMAIL SENDING FAILED for:", email.toLowerCase());
+      console.error("REGISTRATION EMAIL FAILED for:", email.toLowerCase(), "- check SMTP_* env vars on Vercel");
     }
 
     return NextResponse.json(
