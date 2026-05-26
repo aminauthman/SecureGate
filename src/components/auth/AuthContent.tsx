@@ -73,10 +73,10 @@ export function AuthContent() {
           }),
         });
         const data = await res.json();
-        error = data.error;
+        error = data.error ?? undefined;
       } else {
         const result = await signIn("credentials", { email, password, redirect: false });
-        error = result?.error;
+        error = result?.error ?? undefined;
       }
 
       if (error) {
