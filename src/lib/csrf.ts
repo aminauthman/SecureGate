@@ -9,16 +9,22 @@ export function validateOrigin(request: Request): boolean {
 
   try {
     const allowedUrl = new URL(allowed);
+    const allowedHosts = new Set<string>([allowedUrl.hostname]);
 
-    if (origin) {
-      const originUrl = new URL(origin);
-      if (originUrl.hostname !== allowedUrl.hostname || originUrl.port !== allowedUrl.port) return false;
-    }
+    // Vercel automatically sets these env vars for each deployment
+    if (process.env.VERCEL_URL) allowedHosts.add(process.env.VERCEL_URL);
+    if (process.env.VERCEL_BRANCH_URL) allowedHosts.add(process.env.VERCEL_BRANCH_URL);
+    if (process.env.VERCEL_PROJECT_PRODUCTION_URL) allowedHosts.add(process.env.VERCEL_PROJECT_PRODUCTION_URL);
 
-    if (referer) {
-      const refererUrl = new URL(referer);
-      if (refererUrl.hostname !== allowedUrl.hostname || refererUrl.port !== allowedUrl.port) return false;
-    }
+    const checkUrl = (urlStr: string): boolean => {
+      const url = new URL(urlStr);
+      if (!allowedHosts.has(url.hostname)) return false;
+      if (url.hostname === allowedUrl.hostname && url.port !== allowedUrl.port) return false;
+      return true;
+    };
+
+    if (origin && !checkUrl(origin)) return false;
+    if (referer && !checkUrl(referer)) return false;
   } catch {
     return false;
   }
