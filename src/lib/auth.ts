@@ -15,7 +15,7 @@ const loginSchema = z.object({
 
 const MAX_FAILED_ATTEMPTS = 10;
 const LOCKOUT_DURATION_MINUTES = 15;
-const DUMMY_HASH = "$2b$14$PI66rA4K7Dl01YcP0W/76eR5oUrbGulDGtwjYbAuAFyAAOoNDS7By";
+const DUMMY_HASH = "$2b$12$PI66rA4K7Dl01YcP0W/76eR5oUrbGulDGtwjYbAuAFyAAOoNDS7By";
 
 export const authOptions: NextAuthOptions = {
   session: {

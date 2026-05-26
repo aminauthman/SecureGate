@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { FormField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 
@@ -15,7 +16,7 @@ interface SignInFormProps {
   state: "idle" | "loading" | "error" | "success";
 }
 
-export function SignInForm({
+export const SignInForm = memo(function SignInForm({
   email, password, justVerified,
   onEmailChange, onPasswordChange,
   onSubmit, onForgotPassword,
@@ -81,4 +82,4 @@ export function SignInForm({
       </Button>
     </form>
   );
-}
+});

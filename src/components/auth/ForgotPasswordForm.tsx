@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { FormField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 
@@ -11,7 +12,7 @@ interface ForgotPasswordFormProps {
   state: "idle" | "loading" | "error" | "success";
 }
 
-export function ForgotPasswordForm({
+export const ForgotPasswordForm = memo(function ForgotPasswordForm({
   email, onEmailChange, onSubmit, error, state,
 }: ForgotPasswordFormProps) {
   return (
@@ -49,4 +50,4 @@ export function ForgotPasswordForm({
       </Button>
     </form>
   );
-}
+});

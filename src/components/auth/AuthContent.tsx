@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { SignUpForm } from "@/components/auth/SignUpForm";
@@ -24,6 +24,14 @@ export function AuthContent() {
   const [state, setState] = useState<ViewState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [resendState, setResendState] = useState<ViewState>("idle");
+  const csrfTokenRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/csrf")
+      .then((res) => res.json())
+      .then((data) => { csrfTokenRef.current = data.csrfToken })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (document.referrer && new URL(document.referrer).origin === window.location.origin) {
@@ -51,11 +59,30 @@ export function AuthContent() {
 
     setState("loading");
     try {
-      const result = await signIn("credentials", { email, password, redirect: false });
-      if (result?.error) {
-        if (result.error === "EMAIL_NOT_VERIFIED") {
+      let error: string | undefined;
+
+      if (csrfTokenRef.current) {
+        const res = await fetch("/api/auth/callback/credentials", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            csrfToken: csrfTokenRef.current,
+            email,
+            password,
+            json: "true",
+          }),
+        });
+        const data = await res.json();
+        error = data.error;
+      } else {
+        const result = await signIn("credentials", { email, password, redirect: false });
+        error = result?.error;
+      }
+
+      if (error) {
+        if (error === "EMAIL_NOT_VERIFIED") {
           setError("Please verify your email before signing in.");
-        } else if (result.error === "TOO_MANY_ATTEMPTS") {
+        } else if (error === "TOO_MANY_ATTEMPTS") {
           setError("Too many attempts! Try again later.");
         } else {
           setError("Invalid email or password");
@@ -214,6 +241,18 @@ export function AuthContent() {
             error={error}
             state={state}
           />
+          {error === "Please verify your email before signing in." && (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={resendState === "loading"}
+                className="text-sm text-blue-600 hover:text-blue-700 hover:underline underline-offset-2 font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resendState === "loading" ? "Sending..." : "Resend verification email"}
+              </button>
+            </div>
+          )}
           {resendState === "success" && (
             <div className="text-sm text-center text-emerald-600 dark:text-emerald-400">
               Verification email sent!

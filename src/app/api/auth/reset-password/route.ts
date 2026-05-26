@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const saltRounds = 14;
+    const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     await resetPassword(verificationToken.identifier, passwordHash, verificationToken.id);

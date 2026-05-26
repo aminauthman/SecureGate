@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo } from "react";
 import { FormField } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { PASSWORD_REQUIREMENTS } from "@/lib/constants";
@@ -67,7 +67,7 @@ interface SignUpFormProps {
   shouldAutoFocus?: boolean;
 }
 
-export function SignUpForm({
+export const SignUpForm = memo(function SignUpForm({
   email, password, name,
   onEmailChange, onPasswordChange, onNameChange,
   onSubmit, error, state,
@@ -167,4 +167,4 @@ export function SignUpForm({
       </Button>
     </form>
   );
-}
+});
